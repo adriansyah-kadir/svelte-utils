@@ -26,13 +26,20 @@ export function formValues(form: HTMLFormElement, arrays: string[] = []) {
 }
 
 /** Group an error's issues by top-level field. Non-validation errors give no issues. */
-export function fieldIssues(error: unknown): Record<string, Std.Issue[]> {
+type AnySchema = Std<any, any>
+type Keys<S extends AnySchema> = Extract<keyof Std.InferInput<S>, string>
+
+/** Field names from the schema, plus "" for root-level issues. Only fields with issues are present. */
+export type FieldIssues<S extends AnySchema = AnySchema> =
+  Partial<Record<Keys<S> | "", Std.Issue[]>>
+
+export function fieldIssues<S extends AnySchema>(error: unknown, _schema?: S): FieldIssues<S> {
   const grouped: Record<string, Std.Issue[]> = {}
-  if (!(error instanceof ValidationError)) return grouped
+  if (!(error instanceof ValidationError)) return grouped as FieldIssues<S>
   for (const issue of error.issues) {
     const seg = issue.path?.[0]
     const key = seg === undefined ? "" : String(typeof seg === "object" ? seg.key : seg)
-      ; (grouped[key] ??= []).push(issue)
+    ;(grouped[key] ??= []).push(issue)
   }
-  return grouped // key "" holds root-level issues
+  return grouped as FieldIssues<S>
 }
