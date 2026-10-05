@@ -1,4 +1,6 @@
+import type { Attachment } from "svelte/attachments"
 import type { StandardSchemaV1 as Std } from "./standard-schema"
+import { noop } from "#lib"
 
 export class ValidationError extends Error {
   constructor(readonly issues: readonly Std.Issue[]) { super("Validation failed") }
@@ -18,13 +20,31 @@ export const validated = <S extends Std<any, any>, R>(
   return action(res.value)
 }
 
+type Values = Record<string, FormDataEntryValue | FormDataEntryValue[] | null>
+
 /** Read a form into a plain object. Multi-value fields use getAll. */
-export function formValues(form: HTMLFormElement, arrays: string[] = []) {
+export function readForm(form: HTMLFormElement, arrays: string[] = []): Values {
   const data = new FormData(form)
   const names = new Set([...arrays, ...data.keys()])
   return Object.fromEntries([...names].map(n => [n, arrays.includes(n) ? data.getAll(n) : data.get(n)]))
 }
 
+/** On submit: prevent the default, read the form, and pass the values to `onValues`. */
+export function formValues(
+  onValues: (values: Values) => unknown,
+  arrays: string[] = [],
+): Attachment<HTMLFormElement> {
+  return (form) => {
+    const onsubmit = (e: SubmitEvent) => {
+      e.preventDefault()
+      const result = onValues(readForm(form, arrays))
+      // Failures are already captured in useResource state; avoid an unhandled rejection.
+      if (result instanceof Promise) result.catch(noop)
+    }
+    form.addEventListener("submit", onsubmit)
+    return () => form.removeEventListener("submit", onsubmit)
+  }
+}
 /** Group an error's issues by top-level field. Non-validation errors give no issues. */
 type AnySchema = Std<any, any>
 type Keys<S extends AnySchema> = Extract<keyof Std.InferInput<S>, string>
@@ -39,7 +59,7 @@ export function fieldIssues<S extends AnySchema>(error: unknown, _schema?: S): F
   for (const issue of error.issues) {
     const seg = issue.path?.[0]
     const key = seg === undefined ? "" : String(typeof seg === "object" ? seg.key : seg)
-    ;(grouped[key] ??= []).push(issue)
+      ; (grouped[key] ??= []).push(issue)
   }
   return grouped as FieldIssues<S>
 }
