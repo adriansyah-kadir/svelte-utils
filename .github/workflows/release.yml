@@ -2,7 +2,9 @@ name: Build release
 
 on:
   push:
-    - master
+    branches:
+      - master
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,7 +35,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout --orphan release
           git rm -rf . || true
-          git add -f dist package.json README.md LICENSE.md
+          git checkout master -- package.json README.md
+          git add -f dist package.json README.md
           git commit -m "build: release from ${GITHUB_SHA}"
 
       - name: Push release
