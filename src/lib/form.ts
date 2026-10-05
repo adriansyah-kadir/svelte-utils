@@ -2,6 +2,10 @@ import type { StandardSchemaV1 as Std } from "./standard-schema"
 
 export class ValidationError extends Error {
   constructor(readonly issues: readonly Std.Issue[]) { super("Validation failed") }
+
+  static is(error: unknown): error is ValidationError {
+    return error instanceof ValidationError
+  }
 }
 
 /** Validate input against any Standard Schema, then run the action with the parsed output. */
@@ -28,7 +32,7 @@ export function fieldIssues(error: unknown): Record<string, Std.Issue[]> {
   for (const issue of error.issues) {
     const seg = issue.path?.[0]
     const key = seg === undefined ? "" : String(typeof seg === "object" ? seg.key : seg)
-    ;(grouped[key] ??= []).push(issue)
+      ; (grouped[key] ??= []).push(issue)
   }
   return grouped // key "" holds root-level issues
 }
