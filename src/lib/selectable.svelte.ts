@@ -1,9 +1,10 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity"
+import type { Getter } from "./boxed.svelte"
 
 export type SelectableOpts<T> = {
   initialOptions?: [string, T][],
   initialSelected?: string[],
-  multiple?: boolean
+  multiple?: Getter<boolean>
 }
 
 export class Selectable<T> {
@@ -15,7 +16,7 @@ export class Selectable<T> {
   constructor(opts?: SelectableOpts<T>) {
     this.#options = new SvelteMap(opts?.initialOptions)
     this.#selected = new SvelteSet(opts?.initialSelected?.filter(this.hasOption))
-    this.multiple = $state(opts?.multiple ?? false)
+    this.multiple = $derived(opts?.multiple?.() ?? false)
 
     $effect(() => {
       if (this.multiple || this.#selected.size <= 1) return
