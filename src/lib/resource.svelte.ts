@@ -32,7 +32,7 @@ const noop = () => { }
  */
 export function useResource<F extends AsyncFn, E = unknown>(
   fetch: F,
-  ...initial: Parameters<F>
+  initial?: Parameters<F>
 ): Resource<F, E> {
   let latestId = 0
 
@@ -80,7 +80,7 @@ export function useResource<F extends AsyncFn, E = unknown>(
   onDestroy(invalidate)
 
   onMount(() => {
-    if (initial) refetch(...initial).catch(noop)
+    if (initial !== undefined) refetch(...initial).catch(noop)
   })
 
   return {
