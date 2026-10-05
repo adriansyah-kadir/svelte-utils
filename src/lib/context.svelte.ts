@@ -1,7 +1,5 @@
-import type { Box, Constructor } from "#lib";
+import type { Constructor } from "#lib";
 import { getContext, hasContext, setContext } from "svelte";
-
-type ContextArgs<T, C extends Constructor<Context<T>>> = ConstructorParameters<C> extends [unknown, ...infer R] ? [Box<T>, ...R] : [];;
 
 const keys = new WeakMap<Function, symbol>();
 function getContextKey(ctor: Function) {
@@ -15,47 +13,29 @@ function getContextKey(ctor: Function) {
   return key;
 }
 
-export class Context<T> {
-  #opts: Box<T>
-  get opts() { return this.#opts.current }
-  set opts(value: T) {
-    this.#opts.current = value
-  }
-
+export abstract class Context {
   static exists() {
     return hasContext(getContextKey(this))
   }
 
-  static get<C extends Constructor<Context<any>>>(this: C): InstanceType<C> {
+  static get<C extends Constructor<Context>>(this: C): InstanceType<C> {
     return getContext<InstanceType<C>>(getContextKey(this));
   }
 
-  static getOr<C extends Constructor<Context<any>, any>>(this: C): InstanceType<C> | undefined
-  static getOr<T, A extends [Box<T>, ...unknown[]], C extends Constructor<Context<T>, A>>(this: C, ...args: A): InstanceType<C>
-
-  static getOr<C extends Constructor<Context<T>>, T>(
+  static getOr<C extends Constructor<Context>>(this: C): InstanceType<C> | undefined
+  static getOr<C extends Constructor<Context>>(this: C, args: ConstructorParameters<C>): InstanceType<C>
+  static getOr<C extends Constructor<Context>>(
     this: C,
-    ...args: ContextArgs<T, C>
+    args?: ConstructorParameters<C>
   ): InstanceType<C> | undefined {
     const key = getContextKey(this);
-    const opts = args[0]
-    if (!hasContext(key)) {
-      if (opts === undefined) return undefined;
-      return new this(...args) as InstanceType<C>
-    }
-
-    const ctx = getContext<InstanceType<C>>(key)
-    if (opts !== undefined) {
-      $effect(() => {
-        opts.current = ctx.opts
-      })
-    }
-
-    return ctx;
+    if (hasContext(key)) return getContext(key);
+    return args !== undefined
+      ? setContext(key, new this(...args) as InstanceType<C>)
+      : undefined
   }
 
-  constructor(opts: Box<T>) {
-    this.#opts = opts
+  constructor() {
     setContext(
       getContextKey(this.constructor),
       this,

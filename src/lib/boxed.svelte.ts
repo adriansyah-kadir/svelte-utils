@@ -2,14 +2,14 @@ export type Box<T> = { current: T }
 export type Getter<T = unknown> = () => T
 export type Setter<T = unknown, O = any> = (value: T) => O
 
-export function boxState<T>(initial: T, setter: Setter<T, T> = t => t) {
+export function boxState<T>(
+  initial: T,
+  setter: Setter<T, T> = t => t
+) {
   let current = $state(initial)
-
   return {
     get current() { return current },
-    set current(value: T) {
-      current = setter(value)
-    }
+    set current(value: T) { current = setter(value) }
   }
 }
 
@@ -18,16 +18,16 @@ export function boxDerived<T>(
   setter?: Setter<T>
 ) {
   const current = $derived.by(getter)
-
   return {
     get current() { return current },
-    set current(value: T) {
-      setter?.(value)
-    }
+    set current(value: T) { setter?.(value) }
   }
 }
 
-export function boxed<T>(getterOrInitial: Getter<T> | T, setter?: Setter<T>): Box<T> {
+export function box<T>(
+  getterOrInitial: Getter<T> | T,
+  setter?: Setter<T>
+): Box<T> {
   return typeof getterOrInitial === "function"
     ? boxDerived(getterOrInitial as Getter<T>, setter)
     : boxState(getterOrInitial, setter)
