@@ -1,6 +1,6 @@
+import type { Getter, Setter } from "#lib"
+
 export type Box<T> = { current: T }
-export type Getter<T = unknown> = () => T
-export type Setter<T = unknown, O = any> = (value: T) => O
 
 export function boxState<T>(
   initial: T,
