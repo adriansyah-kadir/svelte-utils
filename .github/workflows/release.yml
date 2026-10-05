@@ -1,0 +1,40 @@
+name: Build release
+
+on:
+  push:
+    - master
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Setup release branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan release
+          git rm -rf . || true
+          git add -f dist package.json README.md LICENSE.md
+          git commit -m "build: release from ${GITHUB_SHA}"
+
+      - name: Push release
+        run: git push origin release --force
