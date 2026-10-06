@@ -1,6 +1,6 @@
 import type { Attachment } from "svelte/attachments"
 import type { StandardSchemaV1 as Std } from "./standard-schema"
-import { noop } from "#lib"
+import { noop } from "."
 
 export class ValidationError extends Error {
   constructor(readonly issues: readonly Std.Issue[]) { super("Validation failed") }

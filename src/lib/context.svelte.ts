@@ -1,4 +1,4 @@
-import type { Constructor } from "#lib";
+import type { Constructor } from ".";
 import { getContext, hasContext, setContext } from "svelte";
 
 const keys = new WeakMap<Function, symbol>();

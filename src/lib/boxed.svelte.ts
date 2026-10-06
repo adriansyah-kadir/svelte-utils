@@ -1,4 +1,4 @@
-import type { Getter, Setter } from "#lib"
+import type { Getter, Setter } from "."
 
 export type Box<T> = { current: T }
 

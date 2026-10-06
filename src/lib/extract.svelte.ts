@@ -1,4 +1,4 @@
-import type { MaybeGetter } from "#lib";
+import type { MaybeGetter } from ".";
 
 /**
  * source: {@link https://github.com/svecosystem/runed/blob/main/packages/runed/src/lib/utilities/extract/extract.svelte.ts Runed}
