@@ -1,3 +1,4 @@
+import { box, type Box, type Getter } from ".";
 import type { Attachment } from "svelte/attachments"
 
 function toggler(node: HTMLElement) {
@@ -10,8 +11,28 @@ function toggler(node: HTMLElement) {
   }
 }
 
+export type PopoverOpts = {
+  open?: Box<boolean>,
+  fallbackAnchor?: Getter<HTMLElement | undefined>
+}
+
 export class PopoverState {
-  #node = $state<HTMLElement | null>(null)
+  #fallbackAnchor?: Getter<HTMLElement | undefined>
+
+  #open: Box<boolean>
+  get open() { return this.#open.current }
+  set open(value: boolean) { this.#open.current = value }
+
+  #anchor = $state<HTMLElement>()
+  get anchor() { return this.#anchor ?? this.#fallbackAnchor?.() }
+  get anchorId() {
+    const source = this.anchor;
+    if (!source) return;
+    if (source.id === '') source.id = crypto.randomUUID();
+    return source.id
+  }
+
+  #node = $state<HTMLElement>()
   get node() { return this.#node }
   get nodeId() {
     const node = this.node
@@ -20,27 +41,20 @@ export class PopoverState {
     return node.id
   }
 
-  anchor = $state<HTMLElement | null>(null)
-  get anchorId() {
-    const source = this.anchor;
-    if (!source) return;
-    if (source.id === '') source.id = crypto.randomUUID();
-    return source.id
-  }
-
-  open = $state(false)
-
-  toggle = $derived(this.node ? toggler(this.node) : undefined)
-  show = $derived(this.toggle?.bind(this, true))
-  hide = $derived(this.toggle?.bind(this, false, undefined))
+  toggle = $derived(this.node ? toggler(this.node) : () => {})
+  show = $derived(this.toggle.bind(this, true))
+  hide = $derived(this.toggle.bind(this, false, undefined))
 
   #transitioning = $state(false)
 
-  constructor() {
+  constructor(opts?: PopoverOpts) {
+    this.#open = opts?.open ?? box(false)
+    this.#fallbackAnchor = opts?.fallbackAnchor
+
     $effect(() => {
       const node = this.node
       if (this.#transitioning || !node || this.open === node.matches(":popover-open")) return;
-      this.toggle?.(this.open)
+      this.toggle(this.open)
     })
   }
 
@@ -56,7 +70,7 @@ export class PopoverState {
       popover.addEventListener("beforetoggle", this.#onBeforeToggle)
       popover.addEventListener("toggle", this.#onToggle)
       return () => {
-        this.#node = null
+        this.#node = undefined
         popover.removeEventListener("beforetoggle", this.#onBeforeToggle)
         popover.removeEventListener("toggle", this.#onToggle)
       }
@@ -65,7 +79,7 @@ export class PopoverState {
 
   #onBeforeToggle = (ev: ToggleEvent) => {
     this.#transitioning = true
-    this.anchor = (ev.source as HTMLElement | null) ?? this.anchor
+    this.#anchor = (ev.source as HTMLElement | null) ?? this.anchor
     this.open = ev.newState === "open"
   }
 
@@ -93,6 +107,7 @@ export function getPopoverArea(popover: PopoverState) {
     const open = popover.open
     if (!node || !open) { return };
     frame = requestAnimationFrame(update.bind(null, node))
+    return cancelAnimationFrame(frame)
   })
 
   return {
