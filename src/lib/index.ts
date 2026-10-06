@@ -6,6 +6,8 @@ export * from "./popover.svelte"
 export * from "./state-change"
 export * from "./resource.svelte"
 export * from "./pagination.svelte"
+export * from "./extract.svelte"
+export * from "./query-selector.svelte"
 export * from "./form"
 export * from "./types"
 
