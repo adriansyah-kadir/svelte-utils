@@ -1,5 +1,5 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity"
-import type { Getter } from "./boxed.svelte"
+import type { Getter } from "./types"
 
 export type SelectableOpts<T> = {
   initialOptions?: [string, T][],

@@ -8,6 +8,7 @@ export * from "./resource.svelte"
 export * from "./pagination.svelte"
 export * from "./extract.svelte"
 export * from "./query-selector.svelte"
+export * from "./ripples.svelte"
 export * from "./form"
 export * from "./types"
 
