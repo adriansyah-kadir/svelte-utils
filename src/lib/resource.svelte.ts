@@ -1,71 +1,89 @@
-import { onDestroy, onMount } from "svelte"
-import type { Fn } from "."
+import { onDestroy } from "svelte"
+import { isPromise } from "./checks"
+import type { Fn } from "./types"
 
-type AsyncFn = Fn<Promise<any>, any>
-type Result<F extends AsyncFn> = Awaited<ReturnType<F>>
+type AnyFn = Fn<any, any>
 
-export interface Resource<F extends AsyncFn, E = unknown> {
+export interface Resource<F extends AnyFn, E = unknown> {
   readonly fetching: boolean
-  readonly value: Result<F> | undefined
+  readonly value: Awaited<ReturnType<F>> | undefined
   readonly error: E | undefined
-  success(): this is { value: Result<F> }
-  failed(): this is { error: E }
-  refetch(...args: Parameters<F>): Promise<Result<F>>
+  success(): this is { readonly value: Awaited<ReturnType<F>> }
+  failed(): this is { readonly error: E }
+  refetch(...args: Parameters<F>): ReturnType<F>
   reset(): void
 }
 
-const noop = () => { }
-
 /**
- * Reactive wrapper around an async function.
+ * Reactive wrapper around a sync or async function.
  *
- * Concurrency model: "latest call wins".
- * Every `refetch` gets an incrementing id. Only the call whose id is still
- * current may write to state, so a superseded call (or one that finishes after
- * `reset()` / unmount) never changes `value`, `error`, `success` or `fetching`.
- * A superseded call still resolves/rejects for its own caller.
+ * - Sync functions settle immediately, so `value`/`error` are populated during
+ *   SSR and on first client render. `fetching` never becomes true.
+ * - Async functions settle later. With `initial`, the call starts at init but is
+ *   only tracked from `onMount`, so SSR output and hydration stay identical.
  *
- * @param fetch   The async function to wrap.
- * @param initial Arguments for an automatic fetch on mount. Omit to skip.
+ * Concurrency model: "latest call wins". Every call gets an incrementing id and
+ * only the current id may write state. A superseded call still resolves or
+ * rejects for its own caller.
  *
- * Must be called during component initialisation (uses `onMount`).
+ * Must be called during component initialisation.
  */
-export function useResource<F extends AsyncFn, E = unknown>(
+export function useResource<F extends AnyFn, E = unknown>(
   fetch: F,
-  initial?: Parameters<F>
-): Resource<F, E> {
+): Resource<F> {
+  type Value = Awaited<ReturnType<F>>
+
   let latestId = 0
 
-  // ── Reactive state ──────────────────────────────────────────
   let fetching = $state(false)
-  let value = $state<Result<F>>()
+  let value = $state<Value>()
   let error = $state<E>()
   let success = $state<boolean>()
 
-  /** Bump the id so every older in-flight request becomes stale. Returns the new id. */
   const invalidate = () => ++latestId
   const isCurrent = (id: number) => id === latestId
 
-  async function refetch(...args: Parameters<F>): Promise<Result<F>> {
-    const id = invalidate() // supersedes any previous request
-    fetching = true
+  function succeed(id: number, result: Value) {
+    if (!isCurrent(id)) return
+    value = result
+    error = undefined
+    success = true
+    fetching = false
+  }
 
+  function fail(id: number, e: unknown) {
+    if (!isCurrent(id)) return
+    error = e as E
+    success = false
+    fetching = false
+  }
+
+  /** Marks the request as in flight and settles state when it finishes. */
+  function track(id: number, promise: Promise<Value>): Promise<Value> {
+    if (isCurrent(id)) fetching = true
+    return promise.then(
+      (result) => {
+        succeed(id, result);
+        return result
+      },
+      (e) => {
+        fail(id, e)
+        return e;
+      },
+    )
+  }
+
+  function refetch(...args: Parameters<F>): ReturnType<F> {
+    const id = invalidate()
     try {
-      const result: Result<F> = await fetch(...args)
-      if (isCurrent(id)) {
-        value = result
-        error = undefined
-        success = true
-      }
-      return result
+      const out = fetch(...args)
+      if (!isPromise(out)) {
+        succeed(id, out) // sync: state is set before this function returns
+      } else track(id, out);
+      return out
     } catch (e) {
-      if (isCurrent(id)) {
-        error = e as E
-        success = false
-      }
+      fail(id, e) // sync throw
       throw e
-    } finally {
-      if (isCurrent(id)) fetching = false
     }
   }
 
@@ -79,22 +97,13 @@ export function useResource<F extends AsyncFn, E = unknown>(
 
   onDestroy(invalidate)
 
-  onMount(() => {
-    if (initial !== undefined) refetch(...initial).catch(noop)
-  })
-
   return {
     get fetching() { return fetching },
     get value() { return value },
     get error() { return error },
 
-    // ── Type guards ───────────────────────────────────────────
-    success(): this is { value: Result<F> } {
-      return success === true
-    },
-    failed(): this is { error: E } {
-      return success === false
-    },
+    success(): this is { value: Awaited<ReturnType<F>> } { return success === true },
+    failed(): this is { error: E } { return success === false },
 
     refetch,
     reset,

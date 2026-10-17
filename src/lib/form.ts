@@ -1,6 +1,8 @@
 import type { Attachment } from "svelte/attachments"
 import type { StandardSchemaV1 as Std } from "./standard-schema"
 import { noop } from "."
+import { isPromise } from "./checks"
+import type { IsSyncSchema } from "./standard-schema"
 
 export class ValidationError extends Error {
   constructor(readonly issues: readonly Std.Issue[]) { super("Validation failed") }
@@ -13,12 +15,18 @@ export class ValidationError extends Error {
 /** Validate input against any Standard Schema, then run the action with the parsed output. */
 export const validated = <S extends Std<any, any>, R>(
   schema: S,
-  action: (output: Std.InferOutput<S>) => Promise<R>,
-) => async (input: unknown): Promise<R> => {
-  const res = await schema["~standard"].validate(input)
-  if (res.issues) throw new ValidationError(res.issues)
-  return action(res.value)
-}
+  action: (output: Std.InferOutput<S>) => R,
+) =>
+  ((input: unknown) => {
+    const res = schema["~standard"].validate(input)
+
+    const run = (r: Std.Result<Std.InferOutput<S>>) => {
+      if (r.issues) throw new ValidationError(r.issues)
+      return action(r.value)
+    }
+
+    return isPromise(res) ? res.then(run) : run(res)
+  }) as (input: unknown) => IsSyncSchema<S> extends true ? R : Promise<Awaited<R>>
 
 type Values = Record<string, FormDataEntryValue | FormDataEntryValue[] | null>
 
@@ -55,7 +63,7 @@ export type FieldIssues<S extends AnySchema = AnySchema> =
 
 export function fieldIssues<S extends AnySchema>(error: unknown, _schema?: S): FieldIssues<S> {
   const grouped: Record<string, Std.Issue[]> = {}
-  if (!(error instanceof ValidationError)) return grouped as FieldIssues<S>
+  if (!ValidationError.is(error)) return grouped as FieldIssues<S>
   for (const issue of error.issues) {
     const seg = issue.path?.[0]
     const key = seg === undefined ? "" : String(typeof seg === "object" ? seg.key : seg)

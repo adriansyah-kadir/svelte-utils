@@ -74,3 +74,25 @@ export declare namespace StandardSchemaV1 {
     Schema['~standard']['types']
   >['output'];
 }
+
+export function createStandardSchema<Input, Output = Input>(
+  validate: (
+    value: Input,
+    options?: StandardSchemaV1.Options
+  ) => StandardSchemaV1.Result<Output> | Promise<StandardSchemaV1.Result<Output>>,
+  vendor = 'custom'
+): StandardSchemaV1<Input, Output> {
+  return {
+    '~standard': {
+      version: 1,
+      vendor,
+      // The schema is declared to accept `Input`, so we trust the caller here.
+      validate: validate as StandardSchemaV1.Props<Input, Output>['validate'],
+    },
+  };
+}
+
+export type IsSyncSchema<S extends StandardSchemaV1<any, any>> =
+  [Extract<ReturnType<S["~standard"]["validate"]>, PromiseLike<any>>] extends [never]
+    ? true
+    : false
