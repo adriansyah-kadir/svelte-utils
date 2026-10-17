@@ -1,10 +1,11 @@
-import { box, boxFlat, catcher, noop } from "#lib";
 import { building } from "$app/env"; // was "$app/env"
 import { goto, type GotoOptions } from "$app/navigation";
 import { page } from "$app/state";
+import { box, boxFlat } from "./boxed.svelte";
 import { validated } from "./form";
 import { useResource } from "./resource.svelte";
 import { createStandardSchema, type StandardSchemaV1 } from "./standard-schema";
+import { catcher, noop } from "./utils";
 
 type Key = string;
 type Value = string | string[] | null;
