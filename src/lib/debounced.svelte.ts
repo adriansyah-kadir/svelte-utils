@@ -1,4 +1,4 @@
-import { box } from "#lib";
+import { box } from "./boxed.svelte";
 import type { Getter } from "./types";
 
 export function debounced<T>(getter: Getter<T>, timeout = 500) {
