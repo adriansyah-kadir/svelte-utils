@@ -2,7 +2,7 @@ import { building } from "$app/env"; // was "$app/env"
 import { goto, type GotoOptions } from "$app/navigation";
 import { page } from "$app/state";
 import { box, boxFlat } from "./boxed.svelte";
-import { validated } from "./form";
+import { fieldIssues, validated } from "./form";
 import { useResource } from "./resource.svelte";
 import { createStandardSchema, type StandardSchemaV1 } from "./standard-schema";
 import { catcher, noop } from "./utils";
@@ -75,7 +75,9 @@ export function useSearchParams<S extends Schema = DefaultSchema>(
 
   return {
     values,
-    get params() { return boxFlat(params) },
-    set params(value: In) { params.current = value }
+    get inputs() { return boxFlat(params) },
+    set inputs(value: In) { params.current = value },
+    get outputs() { return values.value },
+    get issues() { return fieldIssues<S>(values.error) }
   };
 }
