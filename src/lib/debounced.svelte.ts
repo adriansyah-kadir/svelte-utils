@@ -5,9 +5,11 @@ export function debounced<T>(getter: Getter<T>, timeout = 500) {
   const value = box(getter())
 
   $effect(() => {
-    return clearTimeout(setTimeout(() => {
-      value.current = getter()
-    }, timeout))
+    const v = getter();
+    return clearTimeout.bind(null, setTimeout(
+      () => (value.current = v),
+      timeout
+    ))
   })
 
   return value
