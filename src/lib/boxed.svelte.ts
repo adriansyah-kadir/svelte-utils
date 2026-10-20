@@ -35,30 +35,35 @@ export function box<T>(
 
 /**
  * make a box.current = {...box.current, x: 100} simplified to box.x = 100
- * note this is not a deep box this only applied to first rank fields
- * so this doesn't work:
- * box.x.y = 100
+ * deep = true make this deep proxy so box.x.y is interpreted as box.current = {...box.current: [x]: {...box.current[x], y}}
 **/
-export function boxFlat<T extends Record<string, any>>(box: Box<T>): T {
+export function boxFlat<T extends Record<string, any>>(boxed: Box<T>, deep = false) {
   return new Proxy({} as T, {
-    get: (_, p) => Reflect.get(box.current, p),
+    get: (_, p: string) => {
+      const value = Reflect.get(boxed.current, p)
+      if (typeof value !== "object" || value === null || !deep) return value
+      return boxFlat(box(
+        () => boxed.current[p],
+        nValue => (boxed.current = { ...boxed.current, [p]: nValue })
+      ))
+    },
 
-    set(_, p, value) {
-      box.current = { ...box.current, [p]: value } as T
+    set(_, p: string, value) {
+      boxed.current = { ...boxed.current, [p]: value }
       return true
     },
 
     deleteProperty(_, p) {
-      const { [p as string]: _removed, ...rest } = box.current
-      box.current = rest as T
+      const { [p as string]: _removed, ...rest } = boxed.current
+      boxed.current = rest as T
       return true
     },
 
-    has: (_, p) => p in box.current,
-    ownKeys: () => Reflect.ownKeys(box.current),
+    has: (_, p) => p in boxed.current,
+    ownKeys: () => Reflect.ownKeys(boxed.current),
 
     getOwnPropertyDescriptor(_, p) {
-      const d = Reflect.getOwnPropertyDescriptor(box.current, p)
+      const d = Reflect.getOwnPropertyDescriptor(boxed.current, p)
       // The target is `{}`, so the proxy invariant requires configurable: true.
       return d && { ...d, configurable: true }
     },
