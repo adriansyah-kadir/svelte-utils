@@ -1,83 +1,47 @@
-import { building } from "$app/env"; // was "$app/env"
+import { building } from "$app/env";
 import { goto, type GotoOptions } from "$app/navigation";
-import { page } from "$app/state";
+import { page, type ReadonlyURLSearchParams } from "$app/state";
 import { box, boxFlat } from "./boxed.svelte";
-import { fieldIssues, validated } from "./form";
-import { useResource } from "./resource.svelte";
-import { createStandardSchema, type StandardSchemaV1 } from "./standard-schema";
-import { catcher, noop } from "./utils";
+import { isObject } from "./checks";
 
-type Key = string;
-type Value = string | string[] | null;
-type Params = Partial<Record<Key, Value>>;
-type Schema = StandardSchemaV1<Params, any>;
-type DefaultSchema = StandardSchemaV1<Params, Params>;
+type Parser<T> = {
+  decode: (search: ReadonlyURLSearchParams) => T,
+  encode?: (value: T) => URLSearchParams
+} | ((search: ReadonlyURLSearchParams) => T)
 
-const anySchema = createStandardSchema((value: Params) => ({ value }));
-
-function readParams(): Params {
-  const out: Params = {};
-  const sp = page.url.searchParams;
-  for (const k of new Set(sp.keys())) {
-    const all = sp.getAll(k);
-    out[k] = all.length > 1 ? all : all[0];
-  }
-  return out;
+function defaultEncoder<T>(value: T) {
+  const search = new URLSearchParams()
+  if (isObject(value)) Object.entries(value).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(search.append.bind(search, k));
+    else if (v !== undefined && v !== null) search.set(k, String(v))
+  }); else search.set("search", String(value))
+  return search
 }
 
-function toUrl(next: Params): string {
-  const p = new URLSearchParams();
-  for (const [key, val] of Object.entries(next)) {
-    if (Array.isArray(val)) val.forEach(item => p.append(key, item));
-    else if (typeof val === "string") p.set(key, val);
-    // null / undefined => omitted
-  }
-  const qs = p.toString();
-  return qs ? `?${qs}` : page.url.pathname;
-}
-
-/**
- * usage:
- * const {params, values} = useSearchParams(schema)
- *
- * to update params:
- * params = {...params, age: 10}
- *
- * this doesn't work:
- * params.age = 10
-**/
-export function useSearchParams<S extends Schema = DefaultSchema>(
-  schema?: S,
-  opts?: GotoOptions & { enabled?: boolean }
+export function useSearchParams<T>(
+  parser: Parser<T>,
+  opts?: GotoOptions & { enabled?: boolean },
 ) {
-  type In = StandardSchemaV1.InferInput<S>;
   const enabled = $derived(opts?.enabled ?? !building)
+  const search = $derived(!enabled ? new URLSearchParams() : page.url.searchParams)
+  const decoder = typeof parser === "function" ? parser : parser.decode
+  const encoder = typeof parser === "function" ? defaultEncoder : parser.encode ?? defaultEncoder
 
-  // Reading: fine during SSR, throws only while prerendering.
-  const params = box<In>(
-    () => enabled ? readParams() : {},
-    params => goto(toUrl(params), { reset: false, ...opts })
-  );
-
-  // Sync schemas settle at init, so `values.value` is filled on the server and
-  // on first client render. Async schemas start tracking in onMount.
-  const values = useResource(validated((schema ?? anySchema) as S, v => v),);
-  if (enabled) catcher(values.refetch, noop, params.current);
-
-  // Refetch on URL changes. The first run is skipped because already run
-  // covered it, which avoids a duplicate validation on mount.
-  let first = true;
-  $effect(() => {
-    const p = params.current; // read first so the effect always subscribes
-    if (first) { first = false; return; }
-    catcher(values.refetch, noop, p)
-  });
+  const params = box<T>(
+    () => decoder(search),
+    next => {
+      if (!enabled) return;
+      const s = encoder(next)
+      goto(s.size > 0 ? `?${s}` : page.url.pathname, { reset: false, ...opts })
+    },
+  )
 
   return {
-    values,
-    get inputs() { return boxFlat(params) },
-    set inputs(value: In) { params.current = value },
-    get outputs() { return values.value },
-    get issues() { return fieldIssues<S>(values.error) }
-  };
+    get current() { return boxFlat(params, true) },
+    set current(values: T) { params.current = values },
+    clear() {
+      if (!enabled) return;
+      goto(page.url.pathname, { reset: false, ...opts })
+    }
+  }
 }

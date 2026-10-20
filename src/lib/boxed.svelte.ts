@@ -1,4 +1,4 @@
-import type { Getter, Setter } from "."
+import { isObject, type Getter, type Setter } from "."
 
 export type Box<T> = { current: T }
 
@@ -33,39 +33,75 @@ export function box<T>(
     : boxState(getterOrInitial, setter)
 }
 
-/**
- * make a box.current = {...box.current, x: 100} simplified to box.x = 100
- * deep = true make this deep proxy so box.x.y is interpreted as box.current = {...box.current: [x]: {...box.current[x], y}}
-**/
-export function boxFlat<T extends Record<string, any>>(boxed: Box<T>, deep = false) {
-  return new Proxy({} as T, {
-    get: (_, p: string) => {
-      const value = Reflect.get(boxed.current, p)
-      if (typeof value !== "object" || value === null || !deep) return value
-      return boxFlat(box(
-        () => boxed.current[p],
-        nValue => (boxed.current = { ...boxed.current, [p]: nValue })
-      ))
+export function boxFlat<T>(outer: Box<T>, deep = false): T {
+  const initial = outer.current
+
+  // Not an object: nothing to proxy, return the value directly
+  if (!isObject(initial)) return initial
+
+  return new Proxy(outer as Box<T & Record<string, any>>, {
+    get: (t, p: string) => {
+      const inner = box(
+        () => t.current[p],
+        nValue => (t.current = { ...t.current, [p]: nValue })
+      )
+      if (!isObject(inner.current) || !deep) return inner.current
+      return Array.isArray(inner.current) ? boxArray(inner) : boxFlat(inner)
     },
 
-    set(_, p: string, value) {
-      boxed.current = { ...boxed.current, [p]: value }
+    set(t, p: string, value) {
+      t.current = { ...t.current, [p]: value }
       return true
     },
 
-    deleteProperty(_, p) {
-      const { [p as string]: _removed, ...rest } = boxed.current
-      boxed.current = rest as T
+    deleteProperty(t, p) {
+      const { [p as string]: _removed, ...rest } = t.current as any
+      t.current = rest
       return true
     },
 
-    has: (_, p) => p in boxed.current,
-    ownKeys: () => Reflect.ownKeys(boxed.current),
+    has: (t, p) => p in t.current,
+    ownKeys: (t) => Reflect.ownKeys(t.current),
 
-    getOwnPropertyDescriptor(_, p) {
-      const d = Reflect.getOwnPropertyDescriptor(boxed.current, p)
+    getOwnPropertyDescriptor(t, p) {
+      const d = Reflect.getOwnPropertyDescriptor(t.current, p)
       // The target is `{}`, so the proxy invariant requires configurable: true.
       return d && { ...d, configurable: true }
     },
-  })
+  }) as T
+}
+
+const MUTATORS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
+
+export function boxArray<T>(b: Box<T[]>): T[] {
+  // Target is a real array so Array.isArray() works
+  return new Proxy([] as T[], {
+    get(_, p) {
+      const arr = b.current;
+      const v = Reflect.get(arr, p);
+      if (typeof v !== "function") return v;
+      if (typeof p === "string" && MUTATORS.has(p)) {
+        return (...args: any[]) => {
+          const copy = [...arr];
+          const result = (copy as any)[p](...args);
+          b.current = copy;
+          return result;
+        };
+      }
+      return v.bind(arr); // map, filter, iterator, etc. read from the current value
+    },
+    set(_, p, value) {
+      const copy = [...b.current] as any;
+      copy[p] = value; // also handles `arr.length = 0` and `arr[i] = x`
+      b.current = copy;
+      return true;
+    },
+    has: (_, p) => p in b.current,
+    ownKeys: () => Reflect.ownKeys(b.current),
+    getOwnPropertyDescriptor(_, p) {
+      const d = Reflect.getOwnPropertyDescriptor(b.current, p);
+      // `length` is non-configurable on the [] target, so it must be reported as such
+      return d && { ...d, configurable: p !== "length" };
+    },
+  });
 }

@@ -94,5 +94,5 @@ export function createStandardSchema<Input, Output = Input>(
 
 export type IsSyncSchema<S extends StandardSchemaV1<any, any>> =
   [Extract<ReturnType<S["~standard"]["validate"]>, PromiseLike<any>>] extends [never]
-    ? true
-    : false
+  ? true
+  : false
