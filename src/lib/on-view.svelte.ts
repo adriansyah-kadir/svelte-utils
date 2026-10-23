@@ -17,23 +17,34 @@ export function onView(
   return (node) => {
     if (!enabled) return;
 
-    let clear: Fn | undefined
+    let clear: Fn | undefined;
+    let visible = false;
+
+    const run = () => {
+      const fn = clear;
+      clear = undefined;
+      fn?.();
+    };
 
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          clear = callback(entry.target)
-          if (!once && clear === undefined) observer.disconnect()
+          if (visible) continue;
+          visible = true;
+          clear = callback(entry.target);
+          if (once) observer.disconnect();
+        } else if (visible) {
+          visible = false;
+          run();
         }
-        else {
-          if (!once) observer.disconnect()
-          clear?.()
-        };
       }
     }, observerOptions);
 
     observer.observe(node);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      run();
+    };
   };
 }
