@@ -27,6 +27,20 @@ export class Selectable<T> {
     })
   }
 
+  get checks() {
+    const ctx = this;
+    return new Proxy({} as Record<string, boolean>, {
+      get(_, p: string) {
+        return ctx.isSelected(p)
+      },
+      set(t, p: string, v) {
+        if (v === t[p]) return true;
+        ctx.toggle(p, v)
+        return true
+      },
+    })
+  }
+
   get all() {
     return this.#options.entries().toArray()
   }
