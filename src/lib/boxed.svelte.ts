@@ -1,4 +1,4 @@
-import { isObject, type Getter, type Setter } from "."
+import { deepEqual, isObject, watch, type Getter, type Setter } from "."
 
 export type Box<T> = { current: T }
 
@@ -103,5 +103,14 @@ export function boxArray<T>(b: Box<T[]>): T[] {
       // `length` is non-configurable on the [] target, so it must be reported as such
       return d && { ...d, configurable: p !== "length" };
     },
+  });
+}
+
+export function boxLink<T>(own: Box<T>, other: Box<T>) {
+  watch(() => own.current, (v) => {
+    if (!deepEqual(v, other.current)) other.current = v;
+  });
+  watch(() => other.current, (v) => {
+    if (!deepEqual(v, own.current)) own.current = v;
   });
 }
