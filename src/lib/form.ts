@@ -1,6 +1,5 @@
 import type { Attachment } from "svelte/attachments"
 import type { StandardSchemaV1 as Std } from "./standard-schema"
-import { noop } from "."
 import { isPromise } from "./checks"
 import type { IsSyncSchema } from "./standard-schema"
 
@@ -45,9 +44,7 @@ export function formValues(
   return (form) => {
     const onsubmit = (e: SubmitEvent) => {
       e.preventDefault()
-      const result = onValues(readForm(form, arrays))
-      // Failures are already captured in useResource state; avoid an unhandled rejection.
-      if (result instanceof Promise) result.catch(noop)
+      onValues(readForm(form, arrays))
     }
     form.addEventListener("submit", onsubmit)
     return () => form.removeEventListener("submit", onsubmit)
