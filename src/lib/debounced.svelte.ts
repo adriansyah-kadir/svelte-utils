@@ -1,11 +1,11 @@
 import { box } from "./boxed.svelte";
+import { watch } from "./effect.svelte";
 import type { Getter } from "./types";
 
-export function debounced<T>(getter: Getter<T>, timeout = 500) {
+export function useDebounced<T>(getter: Getter<T>, timeout = 500) {
   const value = box(getter())
 
-  $effect(() => {
-    const v = getter();
+  watch(getter, v => {
     return clearTimeout.bind(null, setTimeout(
       () => (value.current = v),
       timeout
