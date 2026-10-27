@@ -1,8 +1,10 @@
-import { deepEqual, isObject, watch, type Getter, type Setter } from "."
+import { deepEqual, isObject, watch, type Getter, type MaybeGetter, type Setter } from "."
+
+const MUTATORS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
 
 export type Box<T> = { current: T }
 
-export function boxState<T>(
+function _state<T>(
   initial: T,
   setter: Setter<T, T> = t => t
 ) {
@@ -13,7 +15,7 @@ export function boxState<T>(
   }
 }
 
-export function boxDerived<T>(
+function _derived<T>(
   getter: Getter<T>,
   setter?: Setter<T>
 ) {
@@ -24,56 +26,67 @@ export function boxDerived<T>(
   }
 }
 
-export function box<T>(
-  getterOrInitial: Getter<T> | T,
+function _box<T>(
+  getterOrInitial: MaybeGetter<T>,
   setter?: Setter<T>
 ): Box<T> {
   return typeof getterOrInitial === "function"
-    ? boxDerived(getterOrInitial as Getter<T>, setter)
-    : boxState(getterOrInitial, setter)
+    ? _derived(getterOrInitial as Getter<T>, setter)
+    : _state(getterOrInitial, setter)
 }
 
-export function boxFlat<T>(outer: Box<T>, deep = false): T {
+function _link<T>(own: Box<T>, other: Box<T>) {
+  watch(() => own.current, (v) => {
+    if (!deepEqual(v, other.current)) other.current = v;
+  });
+  watch(() => other.current, (v) => {
+    if (!deepEqual(v, own.current)) own.current = v;
+  });
+}
+
+function _flat<T>(outer: Box<T>, deep = false): T {
   const initial = outer.current
+  const get = (p: string) => (outer.current as any)[p]
+  const set = (p: string, v: any) => {
+    outer.current = {
+      ...outer.current,
+      [p]: v
+    }
+  }
 
   // Not an object: nothing to proxy, return the value directly
   if (!isObject(initial)) return initial
 
-  return new Proxy(outer as Box<T & Record<string, any>>, {
-    get: (t, p: string) => {
-      const inner = box(
-        () => t.current[p],
-        nValue => (t.current = { ...t.current, [p]: nValue })
-      )
+  return new Proxy(initial, {
+    get: (_, p: string) => {
+      const inner = box(() => get(p), v => set(p, v))
       if (!isObject(inner.current) || !deep) return inner.current
-      return Array.isArray(inner.current) ? boxArray(inner) : boxFlat(inner)
+      return Array.isArray(inner.current) ? _array(inner) : _flat(inner)
     },
 
-    set(t, p: string, value) {
-      t.current = { ...t.current, [p]: value }
+    set(_, p: string, v) {
+      set(p, v)
       return true
     },
 
-    deleteProperty(t, p) {
-      const { [p as string]: _removed, ...rest } = t.current as any
-      t.current = rest
+    deleteProperty(_, p) {
+      const { [p as string]: _removed, ...rest } = outer.current as any
+      outer.current = rest
       return true
     },
 
-    has: (t, p) => p in t.current,
-    ownKeys: (t) => Reflect.ownKeys(t.current),
+    has: (_, p) => Object.hasOwn(outer.current as object, p),
+    ownKeys: (_) => Object.getOwnPropertyNames(outer.current),
 
-    getOwnPropertyDescriptor(t, p) {
-      const d = Reflect.getOwnPropertyDescriptor(t.current, p)
+    getOwnPropertyDescriptor(_, p) {
+      const d = Object.getOwnPropertyDescriptor(outer.current, p)
       // The target is `{}`, so the proxy invariant requires configurable: true.
       return d && { ...d, configurable: true }
     },
   }) as T
 }
 
-const MUTATORS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
-
-export function boxArray<T>(b: Box<T[]>): T[] {
+export function _array<T>(b: Box<T[]>): T[] {
   // Target is a real array so Array.isArray() works
   return new Proxy([] as T[], {
     get(_, p) {
@@ -106,11 +119,10 @@ export function boxArray<T>(b: Box<T[]>): T[] {
   });
 }
 
-export function boxLink<T>(own: Box<T>, other: Box<T>) {
-  watch(() => own.current, (v) => {
-    if (!deepEqual(v, other.current)) other.current = v;
-  });
-  watch(() => other.current, (v) => {
-    if (!deepEqual(v, own.current)) own.current = v;
-  });
-}
+export const box = Object.assign(_box, {
+  state: _state,
+  derived: _derived,
+  flat: _flat,
+  array: _array,
+  link: _link
+})

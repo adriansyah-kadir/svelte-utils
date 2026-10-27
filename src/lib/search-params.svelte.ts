@@ -1,7 +1,7 @@
 import { building } from "$app/env";
 import { goto, type GotoOptions } from "$app/navigation";
 import { page, type ReadonlyURLSearchParams } from "$app/state";
-import { box, boxFlat } from "./boxed.svelte";
+import { box } from "./boxed.svelte";
 import { isObject } from "./checks";
 
 type Parser<T> = {
@@ -37,7 +37,7 @@ export function useSearchParams<T>(
   )
 
   return {
-    get current() { return boxFlat(params, true) },
+    get current() { return box.flat(params, true) },
     set current(values: T) { params.current = values },
     clear() {
       if (!enabled) return;
