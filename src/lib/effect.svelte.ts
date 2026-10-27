@@ -3,26 +3,27 @@ import type { Fn } from "./types";
 import { deepEqual } from "./checks";
 
 type Cleanup = Fn | void;
+type Effected = Fn<[], Cleanup>
 
 export type WatchOpts = {
   /** Skip the initial run; only fire when deps change afterwards. */
   lazy?: boolean;
 };
 
-function runEffect(flush: "post" | "pre", effect: () => void | VoidFunction): void {
+function _effect(flush: "post" | "pre", fn: Effected): void {
   switch (flush) {
     case "post":
-      $effect(effect);
+      $effect(fn);
       break;
     case "pre":
-      $effect.pre(effect);
+      $effect.pre(fn);
       break;
   }
 }
 
-function createWatch<T>(
-  schedule: (fn: () => Cleanup) => void,
-  deps: () => T,
+function _create<T>(
+  schedule: Fn<[Effected]>,
+  deps: Fn<[], T>,
   callback: (current: T, previous: T | undefined) => Cleanup,
   opts: WatchOpts = {},
 ) {
@@ -53,21 +54,14 @@ function createWatch<T>(
   });
 }
 
-export function watch<T>(
-  deps: () => T,
-  callback: (current: T, previous: T | undefined) => Cleanup,
-  opts?: { lazy?: false },
-): void;
-export function watch<T>(
-  deps: () => T,
-  callback: (current: T, previous: T) => Cleanup,
-  opts: { lazy: true },
-): void;
-export function watch<T>(deps: () => T, callback: (c: T, p: any) => Cleanup, opts?: WatchOpts) {
-  createWatch((fn) => runEffect("post", fn), deps, callback, opts);
+function _watch<T>(deps: () => T, callback: (c: T, p: any) => Cleanup, opts?: WatchOpts) {
+  _create((fn) => _effect("post", fn), deps, callback, opts);
 }
 
-/** Same as `watch`, but runs before DOM updates (`$effect.pre`). */
-export function watchPre<T>(deps: () => T, callback: (c: T, p: T | undefined) => Cleanup, opts?: WatchOpts) {
-  createWatch((fn) => runEffect("pre", fn), deps, callback, opts);
+function _watchPre<T>(deps: () => T, callback: (c: T, p: T | undefined) => Cleanup, opts?: WatchOpts) {
+  _create((fn) => _effect("pre", fn), deps, callback, opts);
 }
+
+export const watch = Object.assign(_watch, {
+  pre: _watchPre
+})

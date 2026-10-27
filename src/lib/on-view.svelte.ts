@@ -3,7 +3,7 @@ import type { Fn } from './types';
 
 
 export function onView<E extends Element>(
-  callback: Fn<any, [IntersectionObserverEntry, E, IntersectionObserver]>,
+  callback: Fn<[IntersectionObserverEntry, E, IntersectionObserver], any>,
   options: IntersectionObserverInit & { enabled?: boolean; } = {}
 ): Attachment<E> {
   const { enabled = true, ...observerOptions } = options;

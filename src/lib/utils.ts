@@ -3,8 +3,8 @@ import type { Fn } from "./types"
 
 export const noop = () => { }
 
-type Handler = Fn<any, [unknown]>
-type DefaultHandler = Fn<void, [unknown]>
+type Handler = Fn<[unknown]>
+type DefaultHandler = Fn<[unknown]>
 
 /** Return type: promises stay promises, sync results stay sync. Distributes over unions. */
 type Caught<R, H extends Handler> =
