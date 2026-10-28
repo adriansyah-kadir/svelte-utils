@@ -1,8 +1,8 @@
 import { untrack } from "svelte";
-import type { Fn } from "./types";
-import { deepEqual } from "./checks";
+import type { Fn, Getter } from "./types";
 
 type Cleanup = Fn | void;
+type Callback<T> = Fn<[current: T, previous: T | undefined], Cleanup>;
 type Effected = Fn<[], Cleanup>
 
 export type WatchOpts = {
@@ -23,42 +23,31 @@ function _effect(flush: "post" | "pre", fn: Effected): void {
 
 function _create<T>(
   schedule: Fn<[Effected]>,
-  deps: Fn<[], T>,
-  callback: (current: T, previous: T | undefined) => Cleanup,
+  deps: Getter<T>,
+  callback: Callback<T>,
   opts: WatchOpts = {},
 ) {
-  // Keeps array identity stable when its items didn't change, so
-  // `() => [a, b]` doesn't count as "changed" on every re-evaluation.
-  let last: T | undefined;
-
-  const current = $derived.by(() => {
-    const next = $state.snapshot(deps()) as T;
-    if (deepEqual(next, last)) {
-      return last as T;
-    }
-    return (last = next);
-  });
+  const current = $derived.by(deps);
 
   let first = true;
   let previous: T | undefined;
 
   schedule(() => {
-    const value = current; // the only tracked read
+    const value = $state.snapshot(current) as T; // the only tracked read
     const isFirst = first;
     const prev = previous;
     first = false;
     previous = value;
-
     if (isFirst && opts.lazy) return;
     return untrack(() => callback(value, prev));
   });
 }
 
-function _watch<T>(deps: () => T, callback: (c: T, p: any) => Cleanup, opts?: WatchOpts) {
+function _watch<T>(deps: Getter<T>, callback: Callback<T>, opts?: WatchOpts) {
   _create((fn) => _effect("post", fn), deps, callback, opts);
 }
 
-function _watchPre<T>(deps: () => T, callback: (c: T, p: T | undefined) => Cleanup, opts?: WatchOpts) {
+function _watchPre<T>(deps: () => T, callback: Callback<T>, opts?: WatchOpts) {
   _create((fn) => _effect("pre", fn), deps, callback, opts);
 }
 

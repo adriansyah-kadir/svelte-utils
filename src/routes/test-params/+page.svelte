@@ -8,11 +8,13 @@
     validated,
   } from "#lib";
 
-  const sp = useSearchParams((s) => ({
-    name: s.get("name"),
-    age: s.get("age"),
-    tags: s.getAll("tags"),
-  }));
+  const sp = useSearchParams({
+    age: (...inputs) => inputs.at(0) ?? "10",
+    name: (...inputs) => inputs.at(0),
+    tags: (...inputs) => inputs,
+  });
+
+  sp.current;
 
   const sc = createStandardSchema((i: typeof sp.current) => {
     if (isNaN(Number(i.age ?? "10")))
@@ -37,7 +39,11 @@
 </script>
 
 <div>
-  <button onclick={sp.clear}>reset</button>
+  <button
+    onclick={() => {
+      sp.clear();
+    }}>reset</button
+  >
 
   <label>
     Name
@@ -49,14 +55,18 @@
     <input bind:value={sp.current.age} />
   </label>
 
-  <button onclick={() => (sp.current.tags = [...sp.current.tags, ""])}
-    >Add tags</button
+  <button
+    onclick={() => {
+      sp.current.tags = [...sp.current.tags, ""];
+    }}>Add tags</button
   >
   {#each sp.current.tags as tag, i}
     <input bind:value={sp.current.tags[i]} />
+    <button onclick={() => sp.current.tags.splice(i, 1)}>del</button>
   {/each}
 
   <code>
+    {JSON.stringify(sp.current)}
     {JSON.stringify(ss.value)}
     {JSON.stringify(ss.error)}
   </code>
