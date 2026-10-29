@@ -77,12 +77,11 @@ export function useResource<F extends AnyFn, E = unknown>(
     const id = invalidate()
     try {
       const out = fetch(...args)
-      if (!isPromise(out)) {
-        succeed(id, out) // sync: state is set before this function returns
-      } else track(id, out);
+      if (isPromise<Value>(out)) track(id, out);
+      else succeed(id, out);
       return out
     } catch (e) {
-      fail(id, e) // sync throw
+      fail(id, e)
       throw e
     }
   }

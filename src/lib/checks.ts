@@ -1,5 +1,6 @@
-export const isPromise = <T>(v: T | Promise<T>): v is Promise<T> =>
-  typeof (v as any)?.then === "function"
+export function isPromise<T>(v: any): v is Promise<T> {
+  return "then" in v && typeof v.then === "function"
+}
 
 /**
  * check: typeof v === "object" && v !== null
