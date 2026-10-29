@@ -88,7 +88,7 @@ export class PopoverState {
   }
 }
 
-export function getPopoverArea(popover: PopoverState) {
+export function usePopoverArea(popover: PopoverState) {
   let area = $state<string>()
   let frame = 0
 
