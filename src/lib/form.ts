@@ -1,7 +1,37 @@
 import type { Attachment } from "svelte/attachments"
-import type { StandardSchemaV1 as Std } from "./standard-schema"
+import { type StandardSchemaV1 as Std } from "./standard-schema"
 import { isPromise } from "./checks"
 import type { IsSyncSchema } from "./standard-schema"
+import { useResource } from "./resource.svelte"
+import type { Fn } from "./types"
+
+type Entry = FormDataEntryValue | FormDataEntryValue[] | null
+type Entries = Record<string, Entry>
+
+export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferInput<S>]>>(
+  schema: S,
+  action: F,
+  opts?: {
+    arrays?: ((keyof Std.InferInput<S>) & string)[]
+  }
+) {
+  const resource = useResource(validated(schema, action))
+  const issues = fieldIssues<S>(resource.error)
+
+  const attach: Attachment<HTMLFormElement> = node => {
+    return formValues(resource.refetch, opts?.arrays)(node)
+  }
+
+  return {
+    get loading() { return resource.fetching },
+    get issues() { return issues },
+    get value() { return resource.value },
+    get error() { return resource.error },
+    get refetch() { return resource.refetch },
+    get isSchemaError() { return !!resource.error && ValidationError.is(resource.error) },
+    attach
+  }
+}
 
 export class ValidationError extends Error {
   constructor(readonly issues: readonly Std.Issue[]) { super("Validation failed") }
