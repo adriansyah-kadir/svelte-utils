@@ -1,7 +1,5 @@
 import { dequal } from "dequal";
-import { isObject, watch, type Getter, type MaybeGetter, type Setter } from "."
-
-const MUTATORS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
+import { watch, type Getter, type MaybeGetter, type Setter } from "."
 
 export type Box<T> = { current: T }
 
@@ -45,85 +43,37 @@ function _link<T>(own: Box<T>, other: Box<T>) {
   });
 }
 
-function _flat<T>(outer: Box<T>, deep = false): T {
-  const initial = outer.current
-  const get = (p: string) => (outer.current as any)[p]
-  const set = (p: string, v: any) => {
-    outer.current = {
-      ...outer.current,
-      [p]: v
-    }
-  }
-
-  // Not an object: nothing to proxy, return the value directly
-  if (!isObject(initial)) return initial
-
-  return new Proxy(initial, {
-    get: (_, p: string) => {
-      const inner = box(() => get(p), v => set(p, v))
-      if (!isObject(inner.current) || !deep) return inner.current
-      return Array.isArray(inner.current) ? _array(inner) : _flat(inner)
+function _child<T extends object, K extends keyof T>(
+  parent: Box<T>,
+  key: K
+) {
+  return {
+    get current(): T[K] {
+      return parent.current[key]
     },
-
-    set(_, p: string, v) {
-      set(p, v)
-      return true
-    },
-
-    deleteProperty(_, p) {
-      const { [p as string]: _removed, ...rest } = outer.current as any
-      outer.current = rest
-      return true
-    },
-
-    has: (_, p) => Object.hasOwn(outer.current as object, p),
-    ownKeys: (_) => Object.getOwnPropertyNames(outer.current),
-
-    getOwnPropertyDescriptor(_, p) {
-      const d = Object.getOwnPropertyDescriptor(outer.current, p)
-      // The target is `{}`, so the proxy invariant requires configurable: true.
-      return d && { ...d, configurable: true }
-    },
-  }) as T
-}
-
-export function _array<T>(b: Box<T[]>): T[] {
-  // Target is a real array so Array.isArray() works
-  return new Proxy([] as T[], {
-    get(_, p) {
-      const arr = b.current;
-      const v = Reflect.get(arr, p);
-      if (typeof v !== "function") return v;
-      if (typeof p === "string" && MUTATORS.has(p)) {
-        return (...args: any[]) => {
-          const copy = [...arr];
-          const result = (copy as any)[p](...args);
-          b.current = copy;
-          return result;
-        };
+    set current(value: T[K]) {
+      const cur = parent.current
+      if (Array.isArray(cur)) {
+        parent.current = cur.with(key as number, value) as T
+      } else {
+        parent.current = { ...cur, [key]: value }
       }
-      return v.bind(arr); // map, filter, iterator, etc. read from the current value
     },
-    set(_, p, value) {
-      const copy = [...b.current] as any;
-      copy[p] = value; // also handles `arr.length = 0` and `arr[i] = x`
-      b.current = copy;
-      return true;
+    delete() {
+      const cur = parent.current
+      if (Array.isArray(cur)) {
+        parent.current = cur.toSpliced(key as number, 1) as T
+      } else {
+        const { [key]: _, ...rest } = cur
+        parent.current = rest as T
+      }
     },
-    has: (_, p) => p in b.current,
-    ownKeys: () => Reflect.ownKeys(b.current),
-    getOwnPropertyDescriptor(_, p) {
-      const d = Reflect.getOwnPropertyDescriptor(b.current, p);
-      // `length` is non-configurable on the [] target, so it must be reported as such
-      return d && { ...d, configurable: p !== "length" };
-    },
-  });
+  }
 }
 
 export const box = Object.assign(_box, {
   state: _state,
   derived: _derived,
-  flat: _flat,
-  array: _array,
-  link: _link
+  link: _link,
+  child: _child
 })
