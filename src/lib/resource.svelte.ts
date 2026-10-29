@@ -68,7 +68,7 @@ export function useResource<F extends AnyFn, E = unknown>(
       },
       (e) => {
         fail(id, e)
-        return e;
+        throw e;
       },
     )
   }
