@@ -7,27 +7,20 @@
       z: "ok",
     },
     b: 200,
+    tags: []
   });
 
-  let deep = $state(false);
-  const boxed = $derived(
-    box.flat(
-      box(
-        () => raw,
-        (v) => (raw = v),
-      ),
-      deep,
-    ),
-  );
-
-  $inspect(raw.x?.y);
+  const boxed = box(() => raw, v => raw = v)
+  const z = box.child(box.child(boxed, "x"), "z")
+  const y = box.child(box.child(boxed, "x"), "y")
+  const b = box.child(boxed, "b")
+  $inspect(y.current);
 </script>
 
 <label for="deep">deep</label>
-<input id="deep" type="checkbox" bind:checked={deep} />
-<input bind:value={boxed.x.z} />
-<input bind:value={boxed.x.y} type="number" />
-<input bind:value={boxed.b} type="number" />
+<input bind:value={z.current} />
+<input bind:value={y.current} type="number" />
+<input bind:value={b.current} type="number" />
 
 <code>
   {JSON.stringify(raw)}

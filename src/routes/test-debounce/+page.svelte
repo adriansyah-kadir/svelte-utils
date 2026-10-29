@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { debounced } from "#lib";
+  import { useDebounced } from "#lib";
 
   let search = $state("");
-  const searchD = debounced(() => search);
+  const searchD = useDebounced(() => search);
 </script>
 
 <input bind:value={search} />

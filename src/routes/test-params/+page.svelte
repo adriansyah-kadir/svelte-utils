@@ -1,8 +1,6 @@
 <script lang="ts">
   import {
-    catcher,
     createStandardSchema,
-    noop,
     useResource,
     useSearchParams,
     validated,
@@ -34,7 +32,7 @@
   const ss = useResource(validated(sc, (v) => v));
 
   $effect(() => {
-    catcher(ss.refetch, noop, sp.current);
+    ss.refetch(sp.current)
   });
 </script>
 
