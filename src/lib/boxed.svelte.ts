@@ -47,11 +47,10 @@ function _child<T extends object, K extends keyof T>(
   parent: Box<T>,
   key: K
 ) {
+  const current = $derived(parent.current[key])
   return {
-    get current(): T[K] {
-      return parent.current[key]
-    },
-    set current(value: T[K]) {
+    get current() { return current },
+    set current(value) {
       const cur = parent.current
       if (Array.isArray(cur)) {
         parent.current = cur.with(key as number, value) as T
