@@ -1,47 +1,34 @@
 import type { Attachment } from "svelte/attachments"
 import type { Fn } from "./types"
 
-type Mut<N extends Node> = MutationRecord & { target: N }
+type Observer<E, N, O> = (cb: Fn<[E[]]>) => {
+  observe: (target: N, opts?: O) => void,
+  disconnect: () => void
+};
 
-export function observeMutation<N extends Node>(cb: Fn<[Mut<N>]>, opts?: MutationObserverInit): Attachment<N> {
-  const observer = new MutationObserver(mutations => {
-    for (const mut of mutations) {
-      cb(mut as Mut<N>)
-    }
-  })
-
-  return (node: N) => {
-    observer.observe(node, opts)
-    return () => observer.disconnect()
-  }
-}
-
-type ResizeEntry<E extends Element> = ResizeObserverEntry & { target: E }
-
-export function observeResize<E extends Element>(cb: Fn<[ResizeEntry<E>]>, opts?: ResizeObserverOptions): Attachment<E> {
-  return (node: E) => {
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        cb(entry as ResizeEntry<E>)
-      }
+function _observe<E, N extends Element, O>(
+  Observer: Observer<E, N, O>,
+  callback: Fn<[E]>,
+  opts?: O,
+): Attachment<N> {
+  return node => {
+    const observer = Observer(entries => {
+      for (const entry of entries) callback(entry);
     })
 
     observer.observe(node, opts)
-    return () => observer.disconnect()
+    return observer.disconnect
   }
 }
 
-type IntersectEntry<E extends Element> = IntersectionObserverEntry & { target: E }
+export function observeMutation<N extends Element>(callback: Fn<[MutationRecord]>, opts?: MutationObserverInit): Attachment<N> {
+  return _observe(fn => new MutationObserver(fn), callback, opts)
+}
 
-export function observeIntersection<E extends Element>(cb: Fn<[IntersectEntry<E>]>, opts?: IntersectionObserverInit): Attachment<E> {
-  return (node: E) => {
-    const observer = new IntersectionObserver(entries => {
-      for (const entry of entries) {
-        cb(entry as IntersectEntry<E>)
-      }
-    }, opts)
+export function observeResize<N extends Element>(callback: Fn<[ResizeObserverEntry]>, opts?: ResizeObserverOptions): Attachment<N> {
+  return _observe(fn => new ResizeObserver(fn), callback, opts)
+}
 
-    observer.observe(node)
-    return () => observer.disconnect()
-  }
+export function observeIntersection<N extends Element>(callback: Fn<[IntersectionObserverEntry]>, opts?: IntersectionObserverInit): Attachment<N> {
+  return _observe(fn => new IntersectionObserver(fn), callback, opts)
 }
