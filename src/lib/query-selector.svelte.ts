@@ -6,7 +6,7 @@ import { browser } from "$app/env";
 /**
   query element in attached node using MutationObserver childList
 **/
-export function querySelector(
+export function useQuerySelector(
   selector: MaybeGetter<string>,
   target?: MaybeGetter<Node>
 ): {
