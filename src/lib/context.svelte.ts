@@ -35,10 +35,10 @@ export abstract class Context {
       : undefined
   }
 
-  static create<C extends Constructor<Context>>(this: C, ...args: ConstructorParameters<C>) {
-    return setContext(
+  constructor() {
+    setContext(
       getContextKey(this.constructor),
-      new this(...args),
-    ) as InstanceType<C>;
+      this,
+    );
   }
 }
