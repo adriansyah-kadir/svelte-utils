@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { useResource } from "#lib"; // adjust to your path
-  import { validated, formValues, fieldIssues, ValidationError } from "#lib";
+  import { useForm } from "#lib"; // adjust to your path
   import type { StandardSchemaV1 as Std } from "#lib/standard-schema.ts";
 
   // ── Inline Standard Schema (no validation library needed) ───
@@ -18,7 +17,7 @@
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const schema: Std<Record<keyof User, User[keyof User]>, User> = {
+  const schema: Std<Record<keyof User, FormDataEntryValue>, User> = {
     "~standard": {
       version: 1,
       vendor: "inline-demo",
@@ -121,17 +120,13 @@
   }
 
   // ── Form ────────────────────────────────────────────────────
-  const save = useResource(validated(schema, createUser));
-
-  const issues = $derived(fieldIssues<typeof schema>(save.error));
-  const validationError = $derived(ValidationError.is(save.error) ? save.error : undefined);
-  let lastInput = $state<unknown>();
+  const save = useForm(schema, createUser, { arrays: ["tags"] });
 
   const tagOptions = ["svelte", "rust", "go", "spam"];
 </script>
 
 {#snippet errors(name: keyof User)}
-  {#each issues[name] ?? [] as issue}
+  {#each save.issues[name] ?? [] as issue}
     <p class="msg" role="alert">{issue.message}</p>
   {/each}
 {/snippet}
@@ -139,11 +134,7 @@
 <section>
   <h2>Sign up</h2>
 
-  <form
-    {@attach formValues(save.refetch, ["tags"])}
-    onreset={save.reset}
-    novalidate
-  >
+  <form {@attach save.attach} onreset={save.reset} novalidate>
     <label>
       Username
       <input name="username" autocomplete="off" />
@@ -198,20 +189,20 @@
     </label>
 
     <div class="actions">
-      <button type="submit" disabled={save.fetching}>
-        {save.fetching ? "Working…" : "Create account"}
+      <button type="submit" disabled={save.loading}>
+        {save.loading ? "Working…" : "Create account"}
       </button>
       <button type="reset">Reset</button>
     </div>
   </form>
 
   <div class="status" aria-live="polite">
-    {#if save.fetching}
+    {#if save.loading}
       <p>Validating and sending…</p>
-    {:else if validationError}
+    {:else if save.isSchemaError()}
       <p class="msg">
-        Client validation failed: {validationError.issues.length} issue(s). Nothing
-        was sent.
+        Client validation failed: {save.error.issues.length} issue(s). Nothing was
+        sent.
       </p>
     {:else if save.failed()}
       <p class="msg">Request failed: {String(save.error)}</p>
@@ -224,11 +215,10 @@
   <details>
     <summary>Debug</summary>
     <p>Last payload read by <code>formValues</code></p>
-    <pre>{JSON.stringify(lastInput, null, 2)}</pre>
     <p>Issues grouped by <code>fieldIssues</code> (key "" is root-level)</p>
     <pre>{JSON.stringify(
         Object.fromEntries(
-          Object.entries(issues).map(([k, list]) => [
+          Object.entries(save.issues).map(([k, list]) => [
             k,
             list.map((i) => i.message),
           ]),

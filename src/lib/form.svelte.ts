@@ -1,22 +1,21 @@
 import type { Attachment } from "svelte/attachments"
 import { type StandardSchemaV1 as Std } from "./standard-schema"
-import { isPromise } from "./checks"
-import type { IsSyncSchema } from "./standard-schema"
 import { useResource } from "./resource.svelte"
 import type { Fn } from "./types"
 
 type Entry = FormDataEntryValue | FormDataEntryValue[] | null
 type Entries = Record<string, Entry>
 
-export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferInput<S>]>>(
+export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferOutput<S>], any>>(
   schema: S,
   action: F,
   opts?: {
     arrays?: ((keyof Std.InferInput<S>) & string)[]
   }
 ) {
-  const resource = useResource(validated(schema, action))
-  const issues = fieldIssues<S>(resource.error)
+  type V = Awaited<ReturnType<typeof action>>
+  const resource = useResource(validated<S, V>(schema, action))
+  const issues = $derived(fieldIssues<S>(resource.error))
 
   const attach: Attachment<HTMLFormElement> = node => {
     return formValues(resource.refetch, opts?.arrays)(node)
@@ -28,8 +27,11 @@ export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferInpu
     get value() { return resource.value },
     get error() { return resource.error },
     get refetch() { return resource.refetch },
-    get isSchemaError() { return !!resource.error && ValidationError.is(resource.error) },
-    attach
+    failed() { return resource.failed() },
+    success(): this is { value: V } { return resource.success() },
+    isSchemaError(): this is { error: ValidationError } { return resource.failed() && ValidationError.is(resource.error) },
+    reset: resource.reset,
+    attach,
   }
 }
 
@@ -46,21 +48,15 @@ export const validated = <S extends Std<any, any>, R>(
   schema: S,
   action: (output: Std.InferOutput<S>) => R,
 ) =>
-  ((input: unknown) => {
-    const res = schema["~standard"].validate(input)
+(async (input: unknown) => {
+  const res = await schema["~standard"].validate(input)
+  if (res.issues) throw new ValidationError(res.issues);
+  return action(res.value)
+})
 
-    const run = (r: Std.Result<Std.InferOutput<S>>) => {
-      if (r.issues) throw new ValidationError(r.issues)
-      return action(r.value)
-    }
-
-    return isPromise(res) ? res.then(run) : run(res)
-  }) as (input: unknown) => IsSyncSchema<S> extends true ? R : Promise<Awaited<R>>
-
-type Values = Record<string, FormDataEntryValue | FormDataEntryValue[] | null>
 
 /** Read a form into a plain object. Multi-value fields use getAll. */
-export function readForm(form: HTMLFormElement, arrays: string[] = []): Values {
+export function readForm(form: HTMLFormElement, arrays: string[] = []): Entries {
   const data = new FormData(form)
   const names = new Set([...arrays, ...data.keys()])
   return Object.fromEntries([...names].map(n => [n, arrays.includes(n) ? data.getAll(n) : data.get(n)]))
@@ -68,7 +64,7 @@ export function readForm(form: HTMLFormElement, arrays: string[] = []): Values {
 
 /** On submit: prevent the default, read the form, and pass the values to `onValues`. */
 export function formValues(
-  onValues: (values: Values) => unknown,
+  onValues: (values: Entries) => unknown,
   arrays: string[] = [],
 ): Attachment<HTMLFormElement> {
   return (form) => {
