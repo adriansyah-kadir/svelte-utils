@@ -1,4 +1,5 @@
-import { deepEqual, isObject, watch, type Getter, type MaybeGetter, type Setter } from "."
+import { dequal } from "dequal";
+import { isObject, watch, type Getter, type MaybeGetter, type Setter } from "."
 
 const MUTATORS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
 
@@ -37,10 +38,10 @@ function _box<T>(
 
 function _link<T>(own: Box<T>, other: Box<T>) {
   watch(() => own.current, (v) => {
-    if (!deepEqual(v, other.current)) other.current = v;
+    if (!dequal(v, other.current)) other.current = v;
   });
   watch(() => other.current, (v) => {
-    if (!deepEqual(v, own.current)) own.current = v;
+    if (!dequal(v, own.current)) own.current = v;
   });
 }
 

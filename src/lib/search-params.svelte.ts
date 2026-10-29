@@ -1,7 +1,7 @@
 import { building } from "$app/env";
 import { goto, type GotoOptions } from "$app/navigation";
 import { page, type ReadonlyURLSearchParams } from "$app/state";
-import { deepEqual } from "./checks";
+import { dequal } from "dequal";
 import { watch } from "./effect.svelte";
 
 type SearchValues = string | string[] | null
@@ -67,13 +67,13 @@ export function useSearchParams<T extends Record<string, any>>(
 
   // URL -> state
   watch(() => _decode(parser, params), v => {
-    if (!deepEqual(v, value)) value = v
+    if (!dequal(v, value)) value = v
   }, { lazy: true })
 
   // state -> URL
   watch(() => value, v => {
     if (!enabled) return
-    if (deepEqual(_decode(parser, params), v)) return // URL already represents this state
+    if (dequal(_decode(parser, params), v)) return // URL already represents this state
     const next = _encode(parser, v, page.url.searchParams)
     if (canon(next) === canon(page.url.searchParams)) return
     navigate(next)
