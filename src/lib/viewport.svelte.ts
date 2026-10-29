@@ -24,8 +24,12 @@ export function useViewport() {
     sync()
 
     viewport.addEventListener("resize", sync)
+    viewport.addEventListener("resize", sync)
+    viewport.addEventListener("scroll", sync)
     return () => {
       viewport.removeEventListener("resize", sync)
+      viewport.removeEventListener("resize", sync)
+      viewport.removeEventListener("scroll", sync)
     }
   })
 
