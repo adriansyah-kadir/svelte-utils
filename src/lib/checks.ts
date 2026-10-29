@@ -1,7 +1,10 @@
-export function isPromise<T>(v: any): v is Promise<T> {
-  return "then" in v && typeof v.then === "function"
+export function isPromise<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    value != null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  )
 }
-
 /**
  * check: typeof v === "object" && v !== null
 **/
