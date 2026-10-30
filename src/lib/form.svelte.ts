@@ -21,18 +21,11 @@ export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferOutp
     return formValues(resource.refetch, opts?.arrays)(node)
   }
 
-  return {
-    get loading() { return resource.fetching },
+  return Object.defineProperties(resource, Object.getOwnPropertyDescriptors({
     get issues() { return issues },
-    get value() { return resource.value },
-    get error() { return resource.error },
-    get refetch() { return resource.refetch },
-    failed() { return resource.failed() },
-    success(): this is { value: V } { return resource.success() },
     isSchemaError(): this is { error: ValidationError } { return resource.failed() && ValidationError.is(resource.error) },
-    reset: resource.reset,
     attach,
-  }
+  }))
 }
 
 export class ValidationError extends Error {
