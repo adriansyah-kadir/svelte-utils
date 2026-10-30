@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useResource, PaginationState } from "#lib";
+  import { useAction, PaginationState } from "#lib";
   import { untrack } from "svelte";
 
   // ── Fake backend ────────────────────────────────────────────
@@ -83,16 +83,8 @@
   let pageSize = $state(10);
   let fail = $state(false);
 
-  const initialQuery: Query = {
-    search: "",
-    role: "all",
-    page: 1,
-    pageSize: 10,
-    fail: false,
-  };
-
   // ── Resource + pagination ───────────────────────────────────
-  const users = useResource(searchUsers, initialQuery);
+  const users = useAction(searchUsers);
 
   const pagination = new PaginationState({
     pageSize: () => pageSize,
@@ -114,7 +106,7 @@
   // from turning into a fetch loop (and skips the mount run, which `initial` covers).
   $effect(() => {
     const q = currentQuery();
-    untrack(() => users.refetch(q).catch(() => {}));
+    untrack(() => users.run(q).catch(() => {}));
   });
 
   const rows = $derived(users.value?.rows ?? []);
@@ -127,11 +119,7 @@
   <div class="controls">
     <label>
       Search
-      <input
-        type="search"
-        placeholder="Name or email"
-        bind:value={search}
-      />
+      <input type="search" placeholder="Name or email" bind:value={search} />
     </label>
 
     <label>
@@ -162,17 +150,13 @@
   {#if users.failed()}
     <div class="error" role="alert">
       <span>Couldn't load users: {String(users.error)}</span>
-      <button onclick={() => users.refetch(currentQuery()).catch(() => {})}
+      <button onclick={() => users.run(currentQuery()).catch(() => {})}
         >Retry</button
       >
     </div>
   {/if}
 
-  <div
-    class="table-wrap"
-    class:stale={users.fetching}
-    aria-busy={users.fetching}
-  >
+  <div class="table-wrap" class:stale={users.loading} aria-busy={users.loading}>
     <table>
       <thead>
         <tr>
@@ -197,7 +181,7 @@
             <td colspan="5" class="empty">
               {#if users.success()}
                 No users match. Clear the search or pick another role.
-              {:else if users.fetching}
+              {:else if users.loading}
                 Loading…
               {:else}
                 No data.
@@ -216,7 +200,7 @@
       {:else}
         {pagination.start}–{pagination.end} of {pagination.total ?? "?"}
       {/if}
-      {#if users.fetching}<em>updating…</em>{/if}
+      {#if users.loading}<em>updating…</em>{/if}
     </span>
 
     <nav aria-label="Pagination">
@@ -245,7 +229,7 @@
         offset: pagination.offset,
         total: pagination.total,
         totalPages: pagination.totalPages,
-        fetching: users.fetching,
+        fetching: users.loading,
       },
       null,
       2,

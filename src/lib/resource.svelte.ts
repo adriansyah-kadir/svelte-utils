@@ -3,9 +3,8 @@ import { isPromise } from "./checks"
 import type { Fn } from "./types"
 
 export type Reason = "supersede" | "cancel" | "reset" | "destroy"
-
-export function useAction<E, F extends Fn<any, any>>(
-  action: F,
+type Opts<F extends Fn<any, any>, E> = {
+  initial?: Awaited<ReturnType<F>>,
   cleanup?: Fn<[{
     args: Parameters<F>,
     loading: boolean,
@@ -13,6 +12,11 @@ export function useAction<E, F extends Fn<any, any>>(
     value: Awaited<ReturnType<F>> | undefined,
     error: E | undefined
   }]>
+}
+
+export function useAction<E, F extends Fn<any, any>>(
+  action: F,
+  opts?: Opts<F, E>
 ) {
   type V = Awaited<ReturnType<F>>
   let current = {
@@ -22,16 +26,16 @@ export function useAction<E, F extends Fn<any, any>>(
   const isCurrent = (id: number) => id === current.id
 
   let loading = $state(false)
-  let value = $state.raw<V>()
+  let value = $state.raw<V | undefined>(opts?.initial)
   let error = $state.raw<E>()
   let success = $state<boolean>()
 
   function retire(reason: Reason) {
     const { args, id } = current
     current = { id: id + 1, args: undefined }
-    if (args !== undefined && cleanup) {
+    if (args !== undefined && opts?.cleanup) {
       try {
-        cleanup({ args, error, loading, reason, value })
+        opts.cleanup({ args, error, loading, reason, value })
       } catch (e) {
         console.error(e)
       }
