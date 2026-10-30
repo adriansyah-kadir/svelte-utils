@@ -1,6 +1,6 @@
 import type { Attachment } from "svelte/attachments"
 import { type StandardSchemaV1 as Std } from "./standard-schema"
-import { useResource } from "./resource.svelte"
+import { useAction } from "./resource.svelte"
 import type { Fn } from "./types"
 
 type Entry = FormDataEntryValue | FormDataEntryValue[] | null
@@ -14,16 +14,16 @@ export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferOutp
   }
 ) {
   type V = Awaited<ReturnType<typeof action>>
-  const resource = useResource(validated<S, V>(schema, action))
-  const issues = $derived(fieldIssues<S>(resource.error))
+  const validate = useAction(validated<S, V>(schema, action))
+  const issues = $derived(fieldIssues<S>(validate.error))
 
   const attach: Attachment<HTMLFormElement> = node => {
-    return formValues(resource.refetch, opts?.arrays)(node)
+    return formValues(validate.run, opts?.arrays)(node)
   }
 
-  return Object.defineProperties(resource, Object.getOwnPropertyDescriptors({
+  return Object.defineProperties(validate, Object.getOwnPropertyDescriptors({
     get issues() { return issues },
-    isSchemaError(): this is { error: ValidationError } { return resource.failed() && ValidationError.is(resource.error) },
+    isSchemaError(): this is { error: ValidationError } { return validate.failed() && ValidationError.is(validate.error) },
     attach,
   }))
 }

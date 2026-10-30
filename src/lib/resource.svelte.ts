@@ -1,33 +1,46 @@
+import { untrack } from "svelte"
 import { isPromise } from "./checks"
 import type { Fn } from "./types"
 
-/**
- * Reactive wrapper around a sync or async function.
- *
- * - Sync functions settle immediately, so `value`/`error` are populated during
- *   SSR and on first client render. `fetching` never becomes true.
- * - Async functions settle later. With `initial`, the call starts at init but is
- *   only tracked from `onMount`, so SSR output and hydration stay identical.
- *
- * Concurrency model: "latest call wins". Every call gets an incrementing id and
- * only the current id may write state. A superseded call still resolves or
- * rejects for its own caller.
- *
- * Must be called during component initialisation.
- */
-export function useResource<E, F extends Fn<any, any>>(fn: F) {
-  type V = Awaited<ReturnType<F>>
+export type Reason = "supersede" | "cancel" | "reset" | "destroy"
 
-  let latest = 0
-  const invalidate = () => ++latest
+export function useAction<E, F extends Fn<any, any>>(
+  action: F,
+  cleanup?: Fn<[{
+    args: Parameters<F>,
+    loading: boolean,
+    reason: Reason,
+    value: Awaited<ReturnType<F>> | undefined,
+    error: E | undefined
+  }]>
+) {
+  type V = Awaited<ReturnType<F>>
+  let current = {
+    id: 0,
+    args: undefined as Parameters<F> | undefined
+  }
+  const isCurrent = (id: number) => id === current.id
 
   let loading = $state(false)
   let value = $state.raw<V>()
   let error = $state.raw<E>()
   let success = $state<boolean>()
 
+  function retire(reason: Reason) {
+    const { args, id } = current
+    current = { id: id + 1, args: undefined }
+    if (args !== undefined && cleanup) {
+      try {
+        cleanup({ args, error, loading, reason, value })
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return current.id
+  }
+
   function succeed(id: number, result: V) {
-    if (latest !== id) return
+    if (!isCurrent(id)) return
     value = result
     error = undefined
     success = true
@@ -35,17 +48,18 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
   }
 
   function fail(id: number, e: E) {
-    if (latest !== id) return
+    if (!isCurrent(id)) return
     error = e as E
     success = false
     loading = false
   }
 
   /** Marks the request as in flight and settles state when it finishes. */
-  function refetch(...args: Parameters<F>): ReturnType<F> {
-    const id = invalidate()
+  function run(...args: Parameters<F>): ReturnType<F> {
+    const id = retire("supersede")
+    current = { args, id }
     try {
-      const out = fn(...args)
+      const out = action(...args)
       if (isPromise<V>(out)) {
         loading = true;
         out.then(r => succeed(id, r), e => fail(id, e))
@@ -60,14 +74,20 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
   }
 
   function reset() {
-    invalidate()
+    retire("reset")
     value = undefined
     error = undefined
     success = undefined
     loading = false
   }
 
-  $effect(() => invalidate)
+  function cancel() {
+    if (!loading) return;
+    retire("cancel")
+    loading = false;
+  }
+
+  $effect(() => () => untrack(() => retire("destroy")))
 
   return {
     get loading() { return loading },
@@ -77,7 +97,8 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
     success(): this is { value: V } { return success === true },
     failed(): this is { error: E } { return success === false },
 
-    refetch,
-    reset,
+    cancel: () => untrack(cancel),
+    run: (...args: Parameters<F>): ReturnType<F> => untrack(() => run(...args)),
+    reset: () => untrack(reset),
   }
 }
