@@ -1,4 +1,3 @@
-import { onDestroy } from "svelte"
 import { isPromise } from "./checks"
 import type { Fn } from "./types"
 
@@ -22,7 +21,7 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
   let latest = 0
   const invalidate = () => ++latest
 
-  let fetching = $state(false)
+  let loading = $state(false)
   let value = $state.raw<V>()
   let error = $state.raw<E>()
   let success = $state<boolean>()
@@ -32,14 +31,14 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
     value = result
     error = undefined
     success = true
-    fetching = false
+    loading = false
   }
 
   function fail(id: number, e: E) {
     if (latest !== id) return
     error = e as E
     success = false
-    fetching = false
+    loading = false
   }
 
   /** Marks the request as in flight and settles state when it finishes. */
@@ -48,7 +47,7 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
     try {
       const out = fn(...args)
       if (isPromise<V>(out)) {
-        fetching = true;
+        loading = true;
         out.then(r => succeed(id, r), e => fail(id, e))
       } else {
         succeed(id, out)
@@ -65,13 +64,13 @@ export function useResource<E, F extends Fn<any, any>>(fn: F) {
     value = undefined
     error = undefined
     success = undefined
-    fetching = false
+    loading = false
   }
 
-  onDestroy(invalidate)
+  $effect(() => invalidate)
 
   return {
-    get fetching() { return fetching },
+    get loading() { return loading },
     get value() { return value },
     get error() { return error },
 
