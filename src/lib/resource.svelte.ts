@@ -2,18 +2,6 @@ import { onDestroy } from "svelte"
 import { isPromise } from "./checks"
 import type { Fn } from "./types"
 
-type AnyFn = Fn<any, any>
-
-export interface Resource<F extends AnyFn, E = unknown> {
-  readonly fetching: boolean
-  readonly value: Awaited<ReturnType<F>> | undefined
-  readonly error: E | undefined
-  success(): this is { readonly value: Awaited<ReturnType<F>> }
-  failed(): this is { readonly error: E }
-  refetch(...args: Parameters<F>): ReturnType<F>
-  reset(): void
-}
-
 /**
  * Reactive wrapper around a sync or async function.
  *
@@ -28,60 +16,46 @@ export interface Resource<F extends AnyFn, E = unknown> {
  *
  * Must be called during component initialisation.
  */
-export function useResource<F extends AnyFn, E = unknown>(
-  fetch: F,
-): Resource<F> {
-  type Value = Awaited<ReturnType<F>>
+export function useResource<E, F extends Fn<any, any>>(fn: F) {
+  type V = Awaited<ReturnType<F>>
 
-  let latestId = 0
+  let latest = 0
+  const invalidate = () => ++latest
 
   let fetching = $state(false)
-  let value = $state<Value>()
-  let error = $state<E>()
+  let value = $state.raw<V>()
+  let error = $state.raw<E>()
   let success = $state<boolean>()
 
-  const invalidate = () => ++latestId
-  const isCurrent = (id: number) => id === latestId
-
-  function succeed(id: number, result: Value) {
-    if (!isCurrent(id)) return
+  function succeed(id: number, result: V) {
+    if (latest !== id) return
     value = result
     error = undefined
     success = true
     fetching = false
   }
 
-  function fail(id: number, e: unknown) {
-    if (!isCurrent(id)) return
+  function fail(id: number, e: E) {
+    if (latest !== id) return
     error = e as E
     success = false
     fetching = false
   }
 
   /** Marks the request as in flight and settles state when it finishes. */
-  function track(id: number, promise: Promise<Value>): Promise<Value> {
-    if (isCurrent(id)) fetching = true
-    return promise.then(
-      (result) => {
-        succeed(id, result);
-        return result
-      },
-      (e) => {
-        fail(id, e)
-        throw e;
-      },
-    )
-  }
-
   function refetch(...args: Parameters<F>): ReturnType<F> {
     const id = invalidate()
     try {
-      const out = fetch(...args)
-      if (isPromise<Value>(out)) track(id, out);
-      else succeed(id, out);
+      const out = fn(...args)
+      if (isPromise<V>(out)) {
+        fetching = true;
+        out.then(r => succeed(id, r), e => fail(id, e))
+      } else {
+        succeed(id, out)
+      }
       return out
     } catch (e) {
-      fail(id, e)
+      fail(id, e as E)
       throw e
     }
   }
@@ -101,7 +75,7 @@ export function useResource<F extends AnyFn, E = unknown>(
     get value() { return value },
     get error() { return error },
 
-    success(): this is { value: Awaited<ReturnType<F>> } { return success === true },
+    success(): this is { value: V } { return success === true },
     failed(): this is { error: E } { return success === false },
 
     refetch,
