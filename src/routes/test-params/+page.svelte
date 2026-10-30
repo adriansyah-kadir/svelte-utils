@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     createStandardSchema,
-    useResource,
+    useAction,
     useSearchParams,
     validated,
   } from "#lib";
@@ -29,10 +29,10 @@
     };
   });
 
-  const ss = useResource(validated(sc, (v) => v));
+  const ss = useAction(validated(sc, (v) => v));
 
   $effect(() => {
-    ss.refetch(sp.current)
+    ss.run(sp.current)
   });
 </script>
 

@@ -21,11 +21,15 @@ export function useForm<S extends Std<Entries, any>, F extends Fn<[Std.InferOutp
     return formValues(validate.run, opts?.arrays)(node)
   }
 
-  return Object.defineProperties(validate, Object.getOwnPropertyDescriptors({
+  const extra = {
     get issues() { return issues },
-    isSchemaError(): this is { error: ValidationError } { return validate.failed() && ValidationError.is(validate.error) },
+    isSchemaError(): this is { error: ValidationError } {
+      return validate.failed() && ValidationError.is(validate.error)
+    },
     attach,
-  }))
+  }
+
+  return Object.defineProperties(validate, Object.getOwnPropertyDescriptors(extra)) as typeof validate & typeof extra
 }
 
 export class ValidationError extends Error {
