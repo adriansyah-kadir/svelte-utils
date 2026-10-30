@@ -33,7 +33,7 @@ function _create<T>(
   let previous: T | undefined;
 
   schedule(() => {
-    const value = $state.snapshot(current) as T; // the only tracked read
+    const value = current; // the only tracked read
     const isFirst = first;
     const prev = previous;
     first = false;
@@ -43,14 +43,14 @@ function _create<T>(
   });
 }
 
-function _watch<T>(deps: Getter<T>, callback: Callback<T>, opts?: WatchOpts) {
+function _post<T>(deps: Getter<T>, callback: Callback<T>, opts?: WatchOpts) {
   _create((fn) => _effect("post", fn), deps, callback, opts);
 }
 
-function _watchPre<T>(deps: () => T, callback: Callback<T>, opts?: WatchOpts) {
+function _pre<T>(deps: () => T, callback: Callback<T>, opts?: WatchOpts) {
   _create((fn) => _effect("pre", fn), deps, callback, opts);
 }
 
-export const watch = Object.assign(_watch, {
-  pre: _watchPre
+export const watch = Object.assign(_post, {
+  pre: _pre
 })

@@ -71,10 +71,10 @@ export function useSearchParams<T extends Record<string, any>>(
   }, { lazy: true })
 
   // state -> URL
-  watch(() => value, v => {
+  watch(() => $state.snapshot(value), v => {
     if (!enabled) return
     if (dequal(_decode(parser, params), v)) return // URL already represents this state
-    const next = _encode(parser, v, page.url.searchParams)
+    const next = _encode(parser, v as T, page.url.searchParams)
     if (canon(next) === canon(page.url.searchParams)) return
     navigate(next)
   }, { lazy: true })
